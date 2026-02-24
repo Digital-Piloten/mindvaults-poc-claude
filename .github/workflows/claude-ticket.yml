@@ -1,8 +1,7 @@
 # .github/workflows/claude-ticket.yml
-#
-# Triggert wenn ein Issue das Label "claude" bekommt.
-# Claude Code Action bearbeitet den Issue-Body als Prompt
-# und postet das Ergebnis als Kommentar.
+# Version: 1.1
+# Claude Code Action Workflow — triggert auf Issue-Label "claude",
+# bearbeitet den Issue-Body als Prompt und postet Ergebnis als Kommentar.
 
 name: Claude Ticket Processing
 
@@ -93,24 +92,41 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            let claudeOutput = 'Claude hat gearbeitet, aber keinen strukturierten Output erzeugt.';
+            let claudeOutput = '';
 
-            // Versuche Claude's Output aus der Log-Datei zu lesen
+            // Claude's Output aus der Log-Datei lesen
             try {
               const logPath = '/home/runner/work/_temp/claude-execution-output.json';
               if (fs.existsSync(logPath)) {
-                const log = JSON.parse(fs.readFileSync(logPath, 'utf8'));
-                // Extrahiere den result text
-                if (log.result) {
-                  claudeOutput = log.result;
-                } else if (typeof log === 'string') {
-                  claudeOutput = log;
-                } else {
-                  claudeOutput = JSON.stringify(log, null, 2);
+                const raw = fs.readFileSync(logPath, 'utf8');
+                const entries = JSON.parse(raw);
+
+                // Nur assistant-Text-Blöcke extrahieren (Claude's eigentliche Antwort)
+                const textParts = [];
+                for (const entry of entries) {
+                  if (entry.type === 'assistant' && entry.message && entry.message.content) {
+                    for (const block of entry.message.content) {
+                      if (block.type === 'text' && block.text) {
+                        textParts.push(block.text);
+                      }
+                    }
+                  }
+                  // Auch result-Text extrahieren
+                  if (entry.type === 'result' && entry.result) {
+                    textParts.push(entry.result);
+                  }
                 }
+
+                if (textParts.length > 0) {
+                  claudeOutput = textParts.join('\n\n');
+                } else {
+                  claudeOutput = 'Claude hat gearbeitet, aber keinen lesbaren Text-Output erzeugt.\n\n<details><summary>Raw Log</summary>\n\n```json\n' + raw.substring(0, 50000) + '\n```\n</details>';
+                }
+              } else {
+                claudeOutput = 'Keine Log-Datei gefunden.';
               }
             } catch (e) {
-              claudeOutput += `\n\nLog-Fehler: ${e.message}`;
+              claudeOutput = `Log-Parsing fehlgeschlagen: ${e.message}`;
             }
 
             // Prüfe ob Claude bereits einen Kommentar gepostet hat
@@ -118,10 +134,11 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              per_page: 5
+              per_page: 10
             });
 
             const hasClaudeComment = comments.data.some(c =>
+              c.user.login !== 'github-actions[bot]' &&
               c.body && c.body.includes('"status"')
             );
 
@@ -130,6 +147,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `## Claude Code Report\n\n${claudeOutput.substring(0, 60000)}`
+                body: `## 🤖 Claude Code Report\n\n${claudeOutput.substring(0, 60000)}`
               });
             }
