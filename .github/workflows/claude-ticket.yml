@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,6 +33,7 @@ jobs:
           node-version: 20
 
       - name: Run Claude Code Action
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -38,8 +41,8 @@ jobs:
           show_full_output: true
           claude_args: |
             --model claude-sonnet-4-5-20250929
-            --max-turns 5
-            --allowedTools "Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(echo:*),Write,Read,Edit,MultiEdit"
+            --max-turns 10
+            --allowedTools "Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git rm:*),Bash(echo:*),Write,Read,Edit,MultiEdit"
           prompt: |
             Du bearbeitest folgendes Ticket:
 
@@ -51,7 +54,14 @@ jobs:
 
             Bearbeite das Ticket nach bestem Wissen.
 
-            WICHTIG: Beende deinen Kommentar IMMER mit einem JSON-Block in genau diesem Format:
+            WICHTIG — Nach der Bearbeitung MUSST du folgende Schritte ausführen:
+
+            1. Alle Änderungen committen und pushen:
+               git add -A
+               git commit -m "feat: <kurze Beschreibung> (Issue #${{ github.event.issue.number }})"
+               git push
+
+            2. Deinen Kommentar mit einem JSON-Block am Ende beenden:
 
             ```json
             {
@@ -74,3 +84,52 @@ jobs:
             ```
 
             Der JSON-Block muss das LETZTE Element in deinem Kommentar sein.
+
+      # Fallback: Kommentar posten falls Claude es nicht selbst gemacht hat
+      - name: Post result comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let claudeOutput = 'Claude hat gearbeitet, aber keinen strukturierten Output erzeugt.';
+
+            // Versuche Claude's Output aus der Log-Datei zu lesen
+            try {
+              const logPath = '/home/runner/work/_temp/claude-execution-output.json';
+              if (fs.existsSync(logPath)) {
+                const log = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+                // Extrahiere den result text
+                if (log.result) {
+                  claudeOutput = log.result;
+                } else if (typeof log === 'string') {
+                  claudeOutput = log;
+                } else {
+                  claudeOutput = JSON.stringify(log, null, 2);
+                }
+              }
+            } catch (e) {
+              claudeOutput += `\n\nLog-Fehler: ${e.message}`;
+            }
+
+            // Prüfe ob Claude bereits einen Kommentar gepostet hat
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 5
+            });
+
+            const hasClaudeComment = comments.data.some(c =>
+              c.body && c.body.includes('"status"')
+            );
+
+            if (!hasClaudeComment) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## Claude Code Report\n\n${claudeOutput.substring(0, 60000)}`
+              });
+            }
