@@ -1,0 +1,67 @@
+# .github/workflows/claude-ticket.yml
+#
+# Triggert wenn ein Issue das Label "claude" bekommt.
+# Claude Code Action bearbeitet den Issue-Body als Prompt
+# und postet das Ergebnis als Kommentar.
+
+name: Claude Ticket Processing
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  process-ticket:
+    # Nur wenn das Label "claude" hinzugefügt wurde
+    if: github.event.label.name == 'claude'
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Der Prompt kommt aus dem Issue-Body.
+          # Wir wrappen ihn mit Anweisungen für strukturierten Output.
+          prompt: |
+            Du bearbeitest ein Ticket. Der Ticket-Inhalt steht im Issue-Body oben.
+            
+            Bearbeite das Ticket nach bestem Wissen.
+            
+            WICHTIG: Beende deinen Kommentar IMMER mit einem JSON-Block in genau diesem Format:
+            
+            ```json
+            {
+              "status": "done",
+              "summary": "Kurze Zusammenfassung was du gemacht hast (1-2 Sätze)",
+              "files_changed": ["liste", "der", "geänderten", "dateien"],
+              "needs_review": false
+            }
+            ```
+            
+            Falls dir Informationen fehlen um das Ticket zu bearbeiten, nutze stattdessen:
+            
+            ```json
+            {
+              "status": "needs_input",
+              "summary": "Was du bisher verstanden hast",
+              "question": "Deine konkrete Rückfrage an den User",
+              "needs_review": false
+            }
+            ```
+            
+            Der JSON-Block muss das LETZTE Element in deinem Kommentar sein.

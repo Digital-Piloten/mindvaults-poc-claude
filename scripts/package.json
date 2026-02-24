@@ -1,0 +1,16 @@
+{
+  "name": "mindvaults-poc-scripts",
+  "version": "1.0.0",
+  "description": "PoC Scripts: GitHub Issue → Claude Code → Webhook",
+  "type": "module",
+  "scripts": {
+    "test-a": "node test-a-create-issue.js",
+    "test-c": "node test-c-structured-issue.js",
+    "test-e": "node test-e-needs-input.js",
+    "cleanup": "node cleanup.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "dotenv": "^16.4.0"
+  }
+}
