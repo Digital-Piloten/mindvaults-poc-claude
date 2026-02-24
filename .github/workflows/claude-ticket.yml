@@ -3,9 +3,8 @@
 # Triggert wenn ein Issue das Label "claude" bekommt.
 # Claude Code Action bearbeitet den Issue-Body als Prompt
 # und postet das Ergebnis als Kommentar. 
-# --model claude-3-5-haiku-20241022
-# --model claude-sonnet-4-20250514
-# --model claude-opus-4-20250514
+# claude-sonnet-4-5-20250929
+# claude-opus-4-5-20251101
 
 name: Claude Ticket Processing
 
@@ -39,7 +38,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: |
-            --model claude-3-5-haiku-20241022
+            --model claude-sonnet-4-5-20250929
             --max-turns 5
           prompt: |
             Du bearbeitest folgendes Ticket:
