@@ -15,12 +15,12 @@ jobs:
     # Nur wenn das Label "claude" hinzugefügt wurde
     if: github.event.label.name == 'claude'
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
       issues: write
       pull-requests: write
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -34,16 +34,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
-          # Der Prompt kommt aus dem Issue-Body.
-          # Wir wrappen ihn mit Anweisungen für strukturierten Output.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             Du bearbeitest ein Ticket. Der Ticket-Inhalt steht im Issue-Body oben.
-            
+
             Bearbeite das Ticket nach bestem Wissen.
-            
+
             WICHTIG: Beende deinen Kommentar IMMER mit einem JSON-Block in genau diesem Format:
-            
+
             ```json
             {
               "status": "done",
@@ -52,9 +50,9 @@ jobs:
               "needs_review": false
             }
             ```
-            
+
             Falls dir Informationen fehlen um das Ticket zu bearbeiten, nutze stattdessen:
-            
+
             ```json
             {
               "status": "needs_input",
@@ -63,5 +61,5 @@ jobs:
               "needs_review": false
             }
             ```
-            
+
             Der JSON-Block muss das LETZTE Element in deinem Kommentar sein.
